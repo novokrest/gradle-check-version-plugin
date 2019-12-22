@@ -1,0 +1,97 @@
+plugins {
+    id 'groovy'
+    id 'java-gradle-plugin'
+    id 'org.jetbrains.kotlin.jvm' version '1.3.41'
+    id "com.gradle.plugin-publish" version "0.10.1"
+}
+
+repositories {
+    maven {
+        url "https://plugins.gradle.org/m2/"
+    }
+    jcenter()
+}
+
+dependencies {
+    implementation platform('org.jetbrains.kotlin:kotlin-bom')
+
+    implementation 'org.jetbrains.kotlin:kotlin-stdlib'
+    implementation 'org.jetbrains.kotlin:kotlin-stdlib-jdk8'
+
+    testImplementation 'org.jetbrains.kotlin:kotlin-test'
+    testImplementation 'org.jetbrains.kotlin:kotlin-test-junit'
+    testImplementation "org.testng:testng:$testngVersion"
+    testImplementation "junit:junit:$junitVersion"
+    testImplementation gradleTestKit()
+}
+
+compileGroovy.dependsOn.remove('compileJava')
+compileKotlin.dependsOn compileGroovy
+compileKotlin.classpath += files(compileGroovy.destinationDir)
+
+sourceSets {
+    functionalTest {
+        compileClasspath += test.compileClasspath
+        runtimeClasspath += test.runtimeClasspath
+    }
+}
+
+gradlePlugin.testSourceSets(sourceSets.functionalTest)
+configurations.functionalTestImplementation.extendsFrom(configurations.testImplementation)
+
+task functionalTest(type: Test) {
+    testClassesDirs = sourceSets.functionalTest.output.classesDirs
+    classpath = sourceSets.functionalTest.runtimeClasspath
+}
+
+check {
+    dependsOn(tasks.functionalTest)
+}
+
+task createFunctionalTestClasspathManifest {
+
+    ext {
+        outputDir = file("$buildDir/functionalTest/manifest")
+    }
+
+    inputs.files sourceSets.main.runtimeClasspath
+    outputs.dir outputDir
+
+    doLast {
+        outputDir.mkdirs()
+        file("${outputDir}/plugin-classpath.txt").text = sourceSets.main.runtimeClasspath.join("\n")
+    }
+
+    dependsOn functionalTestClasses
+}
+
+functionalTest {
+
+    dependsOn createFunctionalTestClasspathManifest
+
+    systemProperties PLUGIN_METADATA_FILE: file("${createFunctionalTestClasspathManifest.outputDir}/plugin-classpath.txt")
+
+    if (gradle.startParameter.offline) {
+        systemProperties OFFLINE: '1'
+    }
+
+    reports.html.destination = file("${reporting.baseDir}/functionalTests")
+}
+
+gradlePlugin {
+    plugins {
+        gradleCheckVersion {
+            id = 'org.novokrest.gradle-check-version'
+            displayName = 'Gradle Check Version Plugin'
+            description = 'A plugin to check used version of gradle in project ' +
+                    'and compare it with latest stable version of gradle available in public repository.'
+            implementationClass = 'org.novokrest.gradle.plugin.checkversion.GradleCheckVersionPlugin'
+        }
+    }
+}
+
+pluginBundle {
+    website = 'https://github.com/novokrest'
+    vcsUrl = 'https://github.com/novokrest/gradle-check-version-plugin.git'
+    tags = ['check', 'version', 'check-version', 'gradle-check-version']
+}
