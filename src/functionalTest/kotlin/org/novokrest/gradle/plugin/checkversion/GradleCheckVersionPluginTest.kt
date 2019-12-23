@@ -27,7 +27,29 @@ open class GradleCheckVersionPluginTest : AbstractPluginTest() {
                 .buildAndFail()
 
         // then
-        result.output.contains("Used gradle major version is less than current: project=5, current=6")
+        result.output.contains("Used gradle major version is less than current")
+    }
+
+    @Test
+    fun `should warn during build when gradle version in project is not latest and throwing error is disabled`() {
+        // given
+        buildFile.appendText("""
+            
+            gradleCheckVersion {
+                throwErrorIfNotLatest = false
+            }
+        """.trimIndent())
+
+        // when
+        val result = GradleRunner.create()
+                .withGradleVersion("5.6.4")
+                .withProjectDir(testProjectDir.root)
+                .withArguments(":help")
+                .withPluginClasspath(readMetadataFile())
+                .build()
+
+        // then
+        result.output.contains("Used gradle major version is less than current")
     }
 
     @Test
